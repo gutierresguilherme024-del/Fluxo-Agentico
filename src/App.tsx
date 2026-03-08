@@ -45,47 +45,28 @@ export default function App() {
   }, []);
 
   const fetchCompanies = async () => {
-    const res = await fetch('/api/companies');
-    const data = await res.json();
-    setCompanies(data);
+    // Disabled in production - no backend API available
   };
 
   const fetchAgents = async () => {
-    const res = await fetch('/api/agents');
-    const data = await res.json();
-    setAgents(data);
+    // Disabled in production - no backend API available
   };
 
   const fetchWorkflows = async () => {
-    const res = await fetch('/api/workflows');
-    const data = await res.json();
-    setWorkflows(data);
+    // Disabled in production - no backend API available
   };
 
   const saveCompany = async (company: Company) => {
-    await fetch('/api/companies', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(company),
-    });
-    fetchCompanies();
+    // Disabled in production - no backend API available
     setEditingCompany(null);
   };
 
   const deleteCompany = async (id: string) => {
-    if (!confirm('Are you sure? This will delete all agents in this company.')) return;
-    await fetch(`/api/companies/${id}`, { method: 'DELETE' });
-    fetchCompanies();
-    fetchAgents();
+    // Disabled in production - no backend API available
   };
 
   const saveAgent = async (agent: Agent) => {
-    await fetch('/api/agents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(agent),
-    });
-    fetchAgents();
+    // Disabled in production - no backend API available
     setEditingAgent(null);
   };
 
