@@ -180,7 +180,7 @@ export default function App() {
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <span className="font-display font-bold text-xl tracking-tight">
-              {view === 'home' ? 'SoulForge' : selectedCompany?.name}
+              {view === 'home' ? 'SoulForge PROXY-ACTIVE' : selectedCompany?.name}
             </span>
           </div>
         </div>
