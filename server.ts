@@ -3,8 +3,12 @@ import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
 
+
 const db = new Database("soulnode.db");
 db.pragma("foreign_keys = ON");
+
+// Python Agent URL (configurável por variável de ambiente)
+const PYTHON_AGENT_URL = process.env.PYTHON_AGENT_URL || "http://localhost:8000";
 
 // Initialize database
 db.exec(`
@@ -48,22 +52,32 @@ const companyCount = db.prepare("SELECT COUNT(*) as count FROM companies").get()
 if (companyCount.count === 0) {
   db.prepare("INSERT INTO companies (id, name, description, image) VALUES (?, ?, ?, ?)").run(
     "c1", 
-    "TechNova Solutions", 
-    "A leading software development firm specializing in AI and cloud infrastructure.",
+    "Jarvis Agents", 
+    "Equipe de agentes inteligentes especializados em automacao e resolucao de problemas.",
     "https://picsum.photos/seed/tech/400/200"
   );
 
   const insertAgent = db.prepare("INSERT INTO agents (id, companyId, name, soul, model, color, image, skills) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-  insertAgent.run("1", "c1", "Architect", "You are a senior software architect focused on clean code and scalability.", "gemini-3.1-pro-preview", "#3b82f6", null, JSON.stringify(["Clean Architecture", "Scalability", "TypeScript"]));
-  insertAgent.run("2", "c1", "Creative", "You are a creative writer and designer who thinks outside the box.", "gemini-3.1-flash-lite-preview", "#ec4899", null, JSON.stringify(["Creative Writing", "UI/UX Design", "Storytelling"]));
-  insertAgent.run("3", "c1", "Debugger", "You are a meticulous debugger who finds the most obscure bugs.", "gemini-3-flash-preview", "#10b981", null, JSON.stringify(["Bug Hunting", "Performance Tuning", "Unit Testing"]));
+  insertAgent.run("1", "c1", "Jarvis", "Voce eh o Jarvis, um assistente inteligente e amigavel que ajuda com tarefas de programacao e automacao.", "claude-opus-4-6", "#3b82f6", null, JSON.stringify(["Programacao", "Automacao", "Analise"]));
 }
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   app.use(express.json({ limit: '50mb' }));
+
+  // CORS middleware
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      res.sendStatus(200);
+    } else {
+      next();
+    }
+  });
 
   // Companies API
   app.get("/api/companies", (req, res) => {
@@ -137,6 +151,49 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  // Chat endpoint - Proxy to Python Agent
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { agent_id, soul, user_id, message } = req.body;
+
+      // Call Python Agent
+      const agentResponse = await fetch(`${PYTHON_AGENT_URL}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          agent_id: agent_id || "default",
+          soul: soul || "Voce eh um assistente inteligente",
+          user_id: user_id || "user",
+          message: message
+        })
+      });
+
+      if (!agentResponse.ok) {
+        return res.status(agentResponse.status).json({
+          error: "Erro ao chamar agente Python",
+          details: await agentResponse.text()
+        });
+      }
+
+      const data = await agentResponse.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Chat error:", error);
+      res.status(503).json({
+        error: "Agente Python offline",
+        message: "Nao conseguiu conectar ao agente Python. Verifique se esta rodando em " + PYTHON_AGENT_URL,
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Health check endpoint
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", python_agent_url: PYTHON_AGENT_URL });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -152,8 +209,9 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`[SERVER] Rodando em http://localhost:${PORT}`);
+    console.log(`[AGENT] Conectando em ${PYTHON_AGENT_URL}`);
   });
 }
 
-startServer();
+startServer().catch(console.error);
