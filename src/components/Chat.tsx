@@ -119,36 +119,44 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
     setInput('');
     setIsLoading(true);
 
-    const systemPrompt = (agent?.soul || 'You are Claude, a highly capable AI assistant.') + "\n\nResponda sempre em português do Brasil.";
-
     try {
+      setMessages(prev => [...prev, { role: 'model', content: '' }]); // Add a placeholder for the assistant's reply
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system: systemPrompt,
-          messages: messages.concat(userMessage).map((m: ExtendedMessage) => ({
+          messages: [...messages, userMessage].map(m => ({
             role: m.role === 'user' ? 'user' : 'assistant',
             content: m.content
           })),
+          system: agent?.soul || 'You are Claude, a highly capable AI assistant. Responda sempre em português do Brasil.'
         }),
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error((err as any)?.error || `HTTP ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Erro na resposta do servidor');
       }
 
       const data = await response.json();
-      const aiContent = data.content?.[0]?.text || "Não consegui gerar uma resposta.";
-      setMessages((prev: ExtendedMessage[]) => [...prev, { role: 'model', content: aiContent }]);
+      const assistantReply = data.content?.[0]?.text || 'Não consegui gerar uma resposta.';
+
+      setMessages((prev: ExtendedMessage[]) => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], content: assistantReply };
+        return newMessages;
+      });
 
     } catch (error: any) {
       console.error('Chat error:', error);
-      setMessages((prev: ExtendedMessage[]) => [...prev, {
-        role: 'model',
-        content: `❌ Erro: ${error.message}`
-      }]);
+      setMessages((prev: ExtendedMessage[]) => [
+        ...prev.slice(0, -1), // Remove the empty assistant message placeholder
+        {
+          role: 'model',
+          content: `❌ Erro: ${error.message}`
+        }
+      ]);
     } finally {
       setIsLoading(false);
     }
