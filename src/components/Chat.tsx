@@ -120,8 +120,8 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
     setIsLoading(true);
 
     try {
-      // Call Python Agent via proxy (server.ts)
-      const response = await fetch('/api/agent/chat', {
+      // Call Python Agent via Vercel Serverless Function
+      const response = await fetch('/api/agent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,7 +140,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
       }
 
       const data = await response.json();
-      const aiContent = data.response || data.content || "I'm sorry, I couldn't generate a response.";
+      const aiContent = data.response || data.content || data.message || "I'm sorry, I couldn't generate a response.";
 
       setMessages(prev => [...prev, { role: 'model', content: aiContent }]);
 
@@ -148,7 +148,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
       console.error('Chat error:', error);
       setMessages(prev => [...prev, {
         role: 'model',
-        content: `Error: ${error?.message || 'Failed to connect to Agent. Make sure the Python agent is running.'}`
+        content: `Error: ${error?.message || 'Failed to connect to Agent. The Python agent may be offline.'}`
       }]);
     } finally {
       setIsLoading(false);
