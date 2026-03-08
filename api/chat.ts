@@ -11,11 +11,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'messages array is required and cannot be empty' });
   }
 
-  const PYTHON_AGENT_URL = process.env.PYTHON_AGENT_URL;
+  const PYTHON_AGENT_URL = process.env.PYTHON_AGENT_URL || process.env.PYTHON_AGENT_URI;
 
   if (!PYTHON_AGENT_URL) {
     return res.status(500).json({
-      error: 'Variável de ambiente PYTHON_AGENT_URL não configurada no Vercel.',
+      error: 'Variável de ambiente PYTHON_AGENT_URL ou PYTHON_AGENT_URI não configurada no Vercel.',
       message: 'Configure a variável no Vercel apontando para sua hospedagem no Railway (ex: https://seu-app.up.railway.app)'
     });
   }
