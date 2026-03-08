@@ -20,7 +20,7 @@
     "express": "^4.22.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.35.1",
-    "openclaw": "^2026.3.2",
+    "openclaw": "^0.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "vite": "^6.2.0"
