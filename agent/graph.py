@@ -44,41 +44,49 @@ class VoiceAgent:
     async def _call_llm(self, messages: list) -> str:
         """Chama o LLM (Prioriza Anthropic Claude se disponível, senão NVIDIA GLM)"""
         
-        # Se tiver chave da Anthropic, usa o Claude
+        # 1. Se tiver chave da Anthropic, usa o Claude (Principal)
         if ANTHROPIC_API_KEY:
-            client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-            
-            # Converter formato de mensagens para Anthropic
-            system_msg = messages[0]["content"] if messages[0]["role"] == "system" else ""
-            anthropic_messages = [m for m in messages if m["role"] != "system"]
-            
-            response = await client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=1024,
-                system=system_msg,
-                messages=anthropic_messages,
-                temperature=0.7
-            )
-            return response.content[0].text
+            print(f"[LLM] Usando Anthropic Claude para agente {self.agent_id}")
+            try:
+                client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+                
+                system_msg = messages[0]["content"] if messages[0]["role"] == "system" else ""
+                anthropic_messages = [m for m in messages if m["role"] != "system"]
+                
+                response = await client.messages.create(
+                    model="claude-3-5-sonnet-20241022",
+                    max_tokens=1024,
+                    system=system_msg,
+                    messages=anthropic_messages,
+                    temperature=0.7
+                )
+                return response.content[0].text
+            except Exception as e:
+                print(f"[LLM ERROR] Erro no Claude: {str(e)}. Tentando Fallback...")
 
-        # Fallback para NVIDIA GLM
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{NVIDIA_BASE_URL}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {NVIDIA_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": LLM_MODEL,
-                    "messages": messages,
-                    "temperature": 0.7,
-                    "max_tokens": 1024,
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
+        # 2. Fallback para NVIDIA GLM (Apenas se a chave existir)
+        if NVIDIA_API_KEY:
+            print(f"[LLM] Usando Fallback NVIDIA GLM para agente {self.agent_id}")
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{NVIDIA_BASE_URL}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {NVIDIA_API_KEY}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": LLM_MODEL,
+                        "messages": messages,
+                        "temperature": 0.7,
+                        "max_tokens": 1024,
+                    }
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+        
+        # 3. Nenhuma chave disponível
+        raise ValueError("Nenhuma chave de IA configurada no Agente Python (ANTHROPIC_API_KEY ou NVIDIA_API_KEY). Verifique o Railway.")
 
     def _extract_tool_call(self, text: str) -> tuple[Optional[str], Optional[str], str]:
         """Extrai chamada de ferramenta do texto do LLM"""
