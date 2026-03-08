@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Plus, 
-  Settings2, 
-  MessageSquare, 
-  Sparkles, 
-  X, 
-  Save, 
+import {
+  Plus,
+  Settings2,
+  MessageSquare,
+  Sparkles,
+  X,
+  Save,
   ChevronRight,
   Bot,
   Upload,
@@ -18,10 +18,14 @@ import {
   Hash,
   Database,
   Cloud,
-  Play
+  Play,
+  Mic,
+  Zap
 } from 'lucide-react';
 import { Agent, Workflow, Company } from './types';
 import Chat from './components/Chat';
+import VoiceAgent from './components/VoiceAgent';
+import { supabase } from './lib/supabase';
 
 export default function App() {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -32,41 +36,99 @@ export default function App() {
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [view, setView] = useState<'home' | 'company' | 'chat' | 'channel'>('home');
-  
+  const [voiceAgent, setVoiceAgent] = useState<Agent | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const companyFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Skip data fetching in production - using demo data instead
-    // In production, data would come from Supabase directly if needed
-    setCompanies([]);
-    setAgents([]);
-    setWorkflows([]);
+    fetchCompanies();
+    fetchAgents();
+    fetchWorkflows();
   }, []);
 
   const fetchCompanies = async () => {
-    // Disabled in production - no backend API available
+    const { data, error } = await supabase.from('companies').select('*');
+    if (error) {
+      console.error('Error fetching companies:', error);
+      return;
+    }
+    setCompanies(data);
   };
 
   const fetchAgents = async () => {
-    // Disabled in production - no backend API available
+    const { data, error } = await supabase.from('agents').select('*');
+    if (error) {
+      console.error('Error fetching agents:', error);
+      return;
+    }
+    setAgents(data.map((agent: any) => ({
+      ...agent,
+      companyId: agent.company_id,
+      skills: Array.isArray(agent.skills) ? agent.skills : (agent.skills ? JSON.parse(agent.skills) : [])
+    })));
   };
 
   const fetchWorkflows = async () => {
-    // Disabled in production - no backend API available
+    const { data, error } = await supabase.from('workflows').select('*');
+    if (error) {
+      console.error('Error fetching workflows:', error);
+      return;
+    }
+    setWorkflows(data.map((wf: any) => ({
+      ...wf,
+      steps: Array.isArray(wf.steps) ? wf.steps : (wf.steps ? JSON.parse(wf.steps) : [])
+    })));
   };
 
   const saveCompany = async (company: Company) => {
-    // Disabled in production - no backend API available
+    const { error } = await supabase.from('companies').upsert({
+      id: company.id,
+      name: company.name,
+      description: company.description,
+      image: company.image
+    });
+
+    if (error) {
+      console.error('Error saving company:', error);
+      alert('Error saving company: ' + error.message);
+      return;
+    }
+
+    fetchCompanies();
     setEditingCompany(null);
   };
 
   const deleteCompany = async (id: string) => {
-    // Disabled in production - no backend API available
+    if (!confirm('Are you sure? This will delete all agents in this company.')) return;
+    const { error } = await supabase.from('companies').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting company:', error);
+      return;
+    }
+    fetchCompanies();
+    fetchAgents();
   };
 
   const saveAgent = async (agent: Agent) => {
-    // Disabled in production - no backend API available
+    const { error } = await supabase.from('agents').upsert({
+      id: agent.id,
+      company_id: agent.companyId,
+      name: agent.name,
+      soul: agent.soul,
+      model: agent.model,
+      color: agent.color,
+      image: agent.image,
+      skills: agent.skills
+    });
+
+    if (error) {
+      console.error('Error saving agent:', error);
+      alert('Error saving agent: ' + error.message);
+      return;
+    }
+
+    fetchAgents();
     setEditingAgent(null);
   };
 
@@ -103,7 +165,7 @@ export default function App() {
       <nav className="h-16 border-b border-white/5 flex items-center justify-between px-6 glass sticky top-0 z-50">
         <div className="flex items-center gap-4">
           {view !== 'home' && (
-            <button 
+            <button
               onClick={() => {
                 if (view === 'chat' || view === 'channel') setView('company');
                 else setView('home');
@@ -122,10 +184,10 @@ export default function App() {
             </span>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
           {view === 'company' && (
-            <button 
+            <button
               onClick={() => {
                 if (!selectedAgent && companyAgents.length > 0) {
                   setSelectedAgent(companyAgents[0]);
@@ -152,7 +214,7 @@ export default function App() {
       <main className="flex-1 relative overflow-hidden">
         <AnimatePresence mode="wait">
           {view === 'home' ? (
-            <motion.div 
+            <motion.div
               key="home"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -164,13 +226,28 @@ export default function App() {
                   <h1 className="text-5xl font-display font-bold tracking-tight mb-4">Your AI Ecosystem</h1>
                   <p className="text-zinc-400 text-lg">Manage your companies and their specialized AI workforces.</p>
                 </div>
-                <button 
-                  onClick={() => setEditingCompany({ id: Date.now().toString(), name: '', description: '', image: '' })}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20"
-                >
-                  <Plus className="w-5 h-5" />
-                  Create Company
-                </button>
+                <div className="flex gap-4 items-center">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setVoiceAgent({ id: 'jarvis', companyId: 'system', name: 'Jarvis', soul: 'Você é o Jarvis, o sistema de inteligência artificial central. Seja extremamente inteligente, use um tom sofisticado e britânico, e ajude o Guilherme em tudo o que ele precisar usando as ferramentas disponíveis.', model: 'claude-3-5-sonnet', color: '#00f2ff', skills: ['Neural Core', 'Voice Sync', 'Contextual Memory'] })}
+                    className="relative group px-8 py-4 bg-black rounded-2xl border border-cyan-500/50 text-cyan-400 font-black tracking-[0.2em] shadow-[0_0_20px_rgba(6,182,212,0.2)] hover:shadow-[0_0_40px_rgba(6,182,212,0.4)] transition-all overflow-hidden"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-3 relative z-10">
+                      <Zap className="w-5 h-5 animate-pulse text-cyan-400" />
+                      <span>ACCESS JARVIS</span>
+                    </div>
+                  </motion.button>
+
+                  <button
+                    onClick={() => setEditingCompany({ id: Date.now().toString(), name: '', description: '', image: '' })}
+                    className="bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white px-6 py-4 rounded-2xl font-medium flex items-center gap-2 transition-all border border-white/5"
+                  >
+                    <Plus className="w-5 h-5" />
+                    New Company
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -191,8 +268,8 @@ export default function App() {
                     </div>
                     <div className="p-6 space-y-4">
                       <p className="text-zinc-400 text-sm line-clamp-2">{company.description}</p>
-                      
-                      <div className="flex items-center gap-4 pt-2 border-t border-white/5">
+
+                      <div className="flex items-center gap-4 pt-4 border-t border-white/5">
                         <div className="flex items-center gap-1.5 text-zinc-500">
                           <Users className="w-4 h-4" />
                           <span className="text-xs font-mono">{agents.filter(a => a.companyId === company.id).length} Agents</span>
@@ -204,20 +281,20 @@ export default function App() {
                       </div>
 
                       <div className="flex gap-2">
-                        <button 
+                        <button
                           onClick={() => enterCompany(company)}
                           className="flex-1 bg-white/5 hover:bg-white/10 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2"
                         >
                           Manage
                           <ChevronRight className="w-4 h-4" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => setEditingCompany(company)}
                           className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-zinc-400"
                         >
                           <Settings2 className="w-5 h-5" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => deleteCompany(company.id)}
                           className="p-2.5 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all text-red-400"
                         >
@@ -230,7 +307,7 @@ export default function App() {
               </div>
             </motion.div>
           ) : view === 'company' ? (
-            <motion.div 
+            <motion.div
               key="company"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -261,7 +338,7 @@ export default function App() {
                     <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-zinc-800 text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Vercel</span>
                   </button>
                   <div className="w-px h-10 bg-white/10 mx-2" />
-                  <button 
+                  <button
                     onClick={() => setEditingAgent({ id: Date.now().toString(), companyId: selectedCompany!.id, name: 'New Agent', soul: '', model: 'gemini-3-flash-preview', color: '#3b82f6', skills: [] })}
                     className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-all shadow-lg shadow-blue-600/20"
                   >
@@ -277,14 +354,14 @@ export default function App() {
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
                         {agent.image ? (
-                          <img 
-                            src={agent.image} 
-                            alt={agent.name} 
+                          <img
+                            src={agent.image}
+                            alt={agent.name}
                             className="w-12 h-12 rounded-xl object-cover shadow-inner border border-white/10"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <div 
+                          <div
                             className="w-12 h-12 rounded-xl flex items-center justify-center shadow-inner"
                             style={{ backgroundColor: `${agent.color}20`, color: agent.color }}
                           >
@@ -296,7 +373,7 @@ export default function App() {
                           <span className="text-xs font-mono opacity-50 uppercase tracking-widest">{agent.model}</span>
                         </div>
                       </div>
-                      <button 
+                      <button
                         onClick={() => setEditingAgent(agent)}
                         className="p-2 hover:bg-white/5 rounded-lg transition-colors text-zinc-400 hover:text-white"
                       >
@@ -317,12 +394,19 @@ export default function App() {
                     </p>
 
                     <div className="mt-auto pt-4 flex items-center gap-2">
-                      <button 
+                      <button
                         onClick={() => startChat(agent)}
                         className="flex-1 bg-white/5 hover:bg-white/10 text-white py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all"
                       >
                         <MessageSquare className="w-4 h-4" />
-                        Interact
+                        Chat
+                      </button>
+                      <button
+                        onClick={() => setVoiceAgent(agent)}
+                        className="p-2 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 text-blue-400 rounded-lg transition-all"
+                        title="Modo Voz"
+                      >
+                        <Mic className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -330,20 +414,20 @@ export default function App() {
               </div>
             </motion.div>
           ) : (
-            <motion.div 
+            <motion.div
               key="chat-view"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="h-full"
             >
-              <Chat 
-                agent={selectedAgent!} 
-                agents={companyAgents} 
+              <Chat
+                agent={selectedAgent!}
+                agents={companyAgents}
                 workflows={workflows}
                 mode={view === 'channel' ? 'sprint' : 'agent'}
                 onAgentChange={setSelectedAgent}
-                onNewWorkflow={() => {}}
+                onNewWorkflow={() => { }}
               />
             </motion.div>
           )}
@@ -354,14 +438,14 @@ export default function App() {
       <AnimatePresence>
         {editingAgent && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/80 backdrop-blur-sm"
               onClick={() => setEditingAgent(null)}
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -386,7 +470,7 @@ export default function App() {
                 <div className="space-y-6">
                   <div className="flex items-center gap-6">
                     <div className="relative group">
-                      <div 
+                      <div
                         className="w-24 h-24 rounded-2xl flex items-center justify-center border-2 border-dashed border-white/10 overflow-hidden bg-black/20 group-hover:border-blue-500/50 transition-all cursor-pointer"
                         onClick={() => fileInputRef.current?.click()}
                       >
@@ -404,8 +488,8 @@ export default function App() {
                     <div className="flex-1 space-y-4">
                       <div className="space-y-2">
                         <label className="text-xs font-mono uppercase tracking-widest text-zinc-500">Agent Name</label>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={editingAgent.name}
                           onChange={(e) => setEditingAgent({ ...editingAgent, name: e.target.value })}
                           className="soul-input"
@@ -414,7 +498,7 @@ export default function App() {
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-mono uppercase tracking-widest text-zinc-500">Model Selection</label>
-                        <select 
+                        <select
                           value={editingAgent.model}
                           onChange={(e) => setEditingAgent({ ...editingAgent, model: e.target.value })}
                           className="soul-input"
@@ -429,7 +513,7 @@ export default function App() {
 
                   <div className="space-y-2">
                     <label className="text-xs font-mono uppercase tracking-widest text-zinc-500">Agent Soul (System Prompt)</label>
-                    <textarea 
+                    <textarea
                       rows={4}
                       value={editingAgent.soul}
                       onChange={(e) => setEditingAgent({ ...editingAgent, soul: e.target.value })}
@@ -440,8 +524,8 @@ export default function App() {
 
                   <div className="space-y-2">
                     <label className="text-xs font-mono uppercase tracking-widest text-zinc-500">Skills (Comma separated)</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={editingAgent.skills?.join(', ')}
                       onChange={(e) => setEditingAgent({ ...editingAgent, skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
                       className="soul-input"
@@ -481,14 +565,14 @@ export default function App() {
       <AnimatePresence>
         {editingCompany && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/80 backdrop-blur-sm"
               onClick={() => setEditingCompany(null)}
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -513,7 +597,7 @@ export default function App() {
                 <div className="space-y-6">
                   <div className="flex items-center gap-6">
                     <div className="relative group">
-                      <div 
+                      <div
                         className="w-24 h-24 rounded-2xl flex items-center justify-center border-2 border-dashed border-white/10 overflow-hidden bg-black/20 group-hover:border-blue-500/50 transition-all cursor-pointer"
                         onClick={() => companyFileInputRef.current?.click()}
                       >
@@ -531,8 +615,8 @@ export default function App() {
                     <div className="flex-1 space-y-4">
                       <div className="space-y-2">
                         <label className="text-xs font-mono uppercase tracking-widest text-zinc-500">Company Name</label>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={editingCompany.name}
                           onChange={(e) => setEditingCompany({ ...editingCompany, name: e.target.value })}
                           className="soul-input"
@@ -544,7 +628,7 @@ export default function App() {
 
                   <div className="space-y-2">
                     <label className="text-xs font-mono uppercase tracking-widest text-zinc-500">Description</label>
-                    <textarea 
+                    <textarea
                       rows={3}
                       value={editingCompany.description}
                       onChange={(e) => setEditingCompany({ ...editingCompany, description: e.target.value })}
@@ -552,6 +636,8 @@ export default function App() {
                       placeholder="What does this company do?"
                     />
                   </div>
+
+
                 </div>
 
                 <div className="mt-10 flex gap-4">
@@ -564,6 +650,17 @@ export default function App() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Agente de Voz */}
+      <AnimatePresence>
+        {voiceAgent && (
+          <VoiceAgent
+            agent={voiceAgent}
+            userId="default"
+            onClose={() => setVoiceAgent(null)}
+          />
         )}
       </AnimatePresence>
     </div>

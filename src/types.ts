@@ -3,6 +3,7 @@ export interface Company {
   name: string;
   description: string;
   image?: string;
+  activeGateway?: string;
 }
 
 export interface Agent {

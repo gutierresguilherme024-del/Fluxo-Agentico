@@ -26,6 +26,7 @@ import {
   Play
 } from 'lucide-react';
 import { Agent, Workflow, Message } from '../types';
+import { GoogleGenAI } from '@google/genai';
 
 interface ToolCall {
   id: string;
@@ -73,7 +74,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
     if (!input.trim() || isSprintActive) return;
     setIsSprintActive(true);
     setSprintLogs([]);
-    
+
     const task = input;
     setInput('');
 
@@ -94,9 +95,9 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
     }
 
     setIsSprintActive(false);
-    setMessages(prev => [...prev, { 
-      role: 'model', 
-      content: `Sprint completed successfully. The team has processed the task: "${task}". All agents have contributed based on their specialized skills.` 
+    setMessages(prev => [...prev, {
+      role: 'model',
+      content: `Sprint completed successfully. The team has processed the task: "${task}". All agents have contributed based on their specialized skills.`
     }]);
   };
 
@@ -114,40 +115,96 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
     if (!input.trim() || isLoading || !agent) return;
 
     const userMessage: ExtendedMessage = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev: ExtendedMessage[]) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
-    try {
-      // Call Python Agent via Vercel Serverless Function
-      const response = await fetch('/api/agent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          agent_id: agent?.id || 'default',
-          soul: agent?.soul || 'You are a helpful assistant.',
-          user_id: 'user_default',
-          message: input,
-        }),
-      });
+    const anthropicKey = (import.meta.env as any).VITE_ANTHROPIC_API_KEY || '';
+    const systemPrompt = (agent?.soul || 'You are Claude, a highly capable AI assistant.') + "\n\nResponda sempre em português do Brasil.";
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+    try {
+      let aiContent = "";
+
+      try {
+        // Usando Claude 3.5 Sonnet para a interface "Claude Code"
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': anthropicKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 1024,
+            system: systemPrompt,
+            messages: messages.concat(userMessage).map((m: ExtendedMessage) => ({
+              role: m.role === 'user' ? 'user' : 'assistant',
+              content: m.content
+            })),
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err?.error?.message || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        aiContent = data.content?.[0]?.text || "I'm sorry, I couldn't generate a response.";
+
+      } catch (anthropicError: any) {
+        console.warn('Anthropic falhou, tentando NVIDIA GLM fallback no Chat...', anthropicError.message);
+
+        // Fallback para NVIDIA GLM (formato OpenAI)
+        const nvidiaKey = (import.meta.env as any).VITE_NVIDIA_API_KEY;
+        const nvidiaBaseUrl = (import.meta.env as any).VITE_NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1';
+        const llmModel = (import.meta.env as any).VITE_LLM_MODEL || 'z-ai/glm4.7';
+
+        if (!nvidiaKey) {
+          throw anthropicError; // Se não tem fallback, estoura o erro original
+        }
+
+        const fallbackResponse = await fetch(`${nvidiaBaseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${nvidiaKey}`,
+          },
+          body: JSON.stringify({
+            model: llmModel,
+            max_tokens: 1024,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...messages.concat(userMessage).map((m: ExtendedMessage) => ({
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: m.content || ""
+              }))
+            ],
+          }),
+        });
+
+        if (!fallbackResponse.ok) {
+          const errData = await fallbackResponse.json().catch(() => ({}));
+          throw new Error(`Fallback falhou: ${errData?.error?.message || fallbackResponse.status}`);
+        }
+
+        const fallbackData = await fallbackResponse.json();
+        aiContent = fallbackData.choices?.[0]?.message?.content || "I'm sorry, I couldn't generate a response via GLM.";
       }
 
-      const data = await response.json();
-      const aiContent = data.response || data.content || data.message || "I'm sorry, I couldn't generate a response.";
-
-      setMessages(prev => [...prev, { role: 'model', content: aiContent }]);
+      setMessages((prev: ExtendedMessage[]) => [...prev, { role: 'model', content: aiContent }]);
 
     } catch (error: any) {
-      console.error('Chat error:', error);
-      setMessages(prev => [...prev, {
+      console.error('Claude Chat error:', error);
+      let errorMsg = error.message;
+      if (errorMsg.includes('model: claude')) {
+        errorMsg = "Sua chave não tem permissão para este modelo. Falha no fallback.";
+      }
+      setMessages((prev: ExtendedMessage[]) => [...prev, {
         role: 'model',
-        content: `Error: ${error?.message || 'Failed to connect to Agent. The Python agent may be offline.'}`
+        content: `❌ Erro no Claude Code: ${errorMsg}. Verifique as chaves de API.`
       }]);
     } finally {
       setIsLoading(false);
@@ -168,7 +225,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
       {/* Thread/Workflow Sidebar - Claude Code Style */}
       <AnimatePresence>
         {showWorkflowPanel && (
-          <motion.div 
+          <motion.div
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 280, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
@@ -183,7 +240,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
                 <Command className="w-3.5 h-3.5 text-zinc-500" />
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto py-4">
               <div className="px-4 mb-6">
                 <h3 className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mb-3">Active Workflows</h3>
@@ -233,7 +290,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
         {/* Header */}
         <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-[#0d0d0d]/50 backdrop-blur-md sticky top-0 z-10">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setShowWorkflowPanel(!showWorkflowPanel)}
               className="p-1.5 hover:bg-white/5 rounded transition-colors text-zinc-500 hover:text-zinc-200"
             >
@@ -258,7 +315,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
         </div>
 
         {/* Messages Container */}
-        <div 
+        <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto scroll-smooth"
         >
@@ -270,7 +327,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
                 </div>
                 <h1 className="text-2xl font-display font-bold text-white mb-2">Claude Code Interface</h1>
                 <p className="text-zinc-500 text-sm max-w-sm">
-                  A high-performance agent interface for technical workflows. 
+                  A high-performance agent interface for technical workflows.
                   Type <code className="bg-white/5 px-1 rounded text-blue-400">/help</code> to see available commands.
                 </p>
               </div>
@@ -287,9 +344,8 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
             {messages.map((msg, i) => (
               <div key={i} className="group animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-start gap-4 mb-2">
-                  <div className={`w-6 h-6 rounded flex items-center justify-center mt-0.5 overflow-hidden ${
-                    msg.role === 'user' ? 'bg-zinc-800' : 'bg-blue-600/20'
-                  }`}>
+                  <div className={`w-6 h-6 rounded flex items-center justify-center mt-0.5 overflow-hidden ${msg.role === 'user' ? 'bg-zinc-800' : 'bg-blue-600/20'
+                    }`}>
                     {msg.role === 'user' ? (
                       <User className="w-3.5 h-3.5 text-zinc-400" />
                     ) : (
@@ -305,7 +361,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
                       <span className="text-xs font-bold text-zinc-200">{msg.role === 'user' ? 'You' : (agent?.name || 'AI')}</span>
                       <span className="text-[10px] font-mono text-zinc-600">17:03:12</span>
                     </div>
-                    
+
                     {/* Tool Calls Rendering */}
                     {msg.toolCalls && msg.toolCalls.map(tc => (
                       <div key={tc.id} className="mb-4 rounded-lg border border-white/5 bg-black/40 overflow-hidden">
@@ -320,9 +376,8 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
                             ) : (
                               <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                             )}
-                            <span className={`text-[10px] font-mono uppercase tracking-widest ${
-                              tc.status === 'running' ? 'text-blue-400' : 'text-emerald-500'
-                            }`}>{tc.status}</span>
+                            <span className={`text-[10px] font-mono uppercase tracking-widest ${tc.status === 'running' ? 'text-blue-400' : 'text-emerald-500'
+                              }`}>{tc.status}</span>
                           </div>
                         </div>
                         <div className="p-3 font-mono text-xs">
@@ -390,13 +445,13 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
                   </div>
                   <div className="h-3 w-px bg-white/10 mx-1" />
                   <div className="flex items-center gap-1 bg-black/40 rounded-md p-0.5 border border-white/5">
-                    <button 
+                    <button
                       onClick={() => setCurrentMode('agent')}
                       className={`px-2 py-0.5 rounded text-[9px] font-mono uppercase transition-all ${currentMode === 'agent' ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
                       Agent
                     </button>
-                    <button 
+                    <button
                       onClick={() => setCurrentMode('sprint')}
                       className={`px-2 py-0.5 rounded text-[9px] font-mono uppercase transition-all ${currentMode === 'sprint' ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
@@ -406,7 +461,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
                   {currentMode === 'agent' && (
                     <>
                       <div className="h-3 w-px bg-white/10 mx-1" />
-                      <button 
+                      <button
                         onClick={() => setShowModelSelector(!showModelSelector)}
                         className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 hover:text-zinc-200 transition-colors"
                       >
@@ -418,7 +473,7 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
                 </div>
 
                 <div className="flex items-end gap-2 p-2">
-                  <textarea 
+                  <textarea
                     rows={1}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -436,14 +491,13 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
                     <button className="p-2 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors">
                       <Plus className="w-4 h-4" />
                     </button>
-                    <button 
+                    <button
                       onClick={currentMode === 'agent' ? handleSend : startSprint}
                       disabled={!input.trim() || isLoading || isSprintActive}
-                      className={`h-9 px-4 rounded-lg flex items-center justify-center gap-2 transition-all font-bold text-xs uppercase tracking-widest ${
-                        input.trim() && !isLoading && !isSprintActive
-                          ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]' 
-                          : 'bg-white/5 text-zinc-600'
-                      }`}
+                      className={`h-9 px-4 rounded-lg flex items-center justify-center gap-2 transition-all font-bold text-xs uppercase tracking-widest ${input.trim() && !isLoading && !isSprintActive
+                        ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(59,130,246,0.4)]'
+                        : 'bg-white/5 text-zinc-600'
+                        }`}
                     >
                       {currentMode === 'agent' ? (
                         <>
@@ -485,14 +539,14 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
       <AnimatePresence>
         {showModelSelector && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setShowModelSelector(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -512,9 +566,8 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
                       onAgentChange(a);
                       setShowModelSelector(false);
                     }}
-                    className={`w-full text-left p-3 rounded-xl flex items-center justify-between group transition-all ${
-                      a.id === agent?.id ? 'bg-blue-600/10 border border-blue-500/20' : 'hover:bg-white/5 border border-transparent'
-                    }`}
+                    className={`w-full text-left p-3 rounded-xl flex items-center justify-between group transition-all ${a.id === agent?.id ? 'bg-blue-600/10 border border-blue-500/20' : 'hover:bg-white/5 border border-transparent'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors overflow-hidden">

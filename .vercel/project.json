@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_1BB2DeE138HSqn6ftRJHvNbiL0WZ",
+  "orgId": "team_4gwWKlKkXzaCPC0BzTkj7lw6",
+  "projectName": "glm-studio-br",
+  "settings": {
+    "createdAt": 1772907157527,
+    "framework": "vite",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}
