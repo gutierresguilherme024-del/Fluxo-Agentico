@@ -5,73 +5,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages, system, model = 'claude-3-5-sonnet-20241022', max_tokens = 1024 } = req.body;
+  const { messages, system } = req.body;
 
-  if (!messages || !Array.isArray(messages)) {
-    return res.status(400).json({ error: 'messages array is required' });
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array is required and cannot be empty' });
   }
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const PYTHON_AGENT_URL = process.env.PYTHON_AGENT_URL;
 
-  if (anthropicKey) {
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({ model, max_tokens, system, messages }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        const errMsg = (err as any)?.error?.message || `HTTP ${response.status}`;
-        throw new Error(errMsg);
-      }
-
-      const data = await response.json();
-      return res.status(200).json(data);
-    } catch (err: any) {
-      console.error('Anthropic error:', err.message);
-      // Fall through to NVIDIA fallback
-    }
-  }
-
-  // Fallback: NVIDIA GLM (OpenAI-compatible format)
-  const nvidiaKey = process.env.NVIDIA_API_KEY;
-  const nvidiaBaseUrl = process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1';
-  const llmModel = process.env.LLM_MODEL || 'z-ai/glm4.7';
-
-  if (!nvidiaKey) {
-    return res.status(500).json({ error: 'Nenhuma API key de IA configurada. Adicione ANTHROPIC_API_KEY nas variáveis de ambiente do Vercel.' });
+  if (!PYTHON_AGENT_URL) {
+    return res.status(500).json({
+      error: 'Variável de ambiente PYTHON_AGENT_URL não configurada no Vercel.',
+      message: 'Configure a variável no Vercel apontando para sua hospedagem no Railway (ex: https://seu-app.up.railway.app)'
+    });
   }
 
   try {
-    const fallbackMessages = system
-      ? [{ role: 'system', content: system }, ...messages]
-      : messages;
+    // 1. Extrair a última mensagem do usuário do payload do frontend
+    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+    const messageText = lastUserMessage?.content || '';
 
-    const fallbackResponse = await fetch(`${nvidiaBaseUrl}/chat/completions`, {
+    // 2. Limpar a URL base (remover barra extra no final, se houver)
+    const baseUrl = PYTHON_AGENT_URL.endsWith('/') ? PYTHON_AGENT_URL.slice(0, -1) : PYTHON_AGENT_URL;
+
+    // 3. Montar o payload no formato que o FastApi Python (agent/main.py -> /chat) espera
+    const pythonPayload = {
+      agent_id: 'jarvis',
+      soul: system || 'Você é um assistente de voz inteligente. Responda sempre em português do Brasil.',
+      user_id: 'default',
+      message: messageText
+    };
+
+    console.log(`[PROXY] Enviando requisição para: ${baseUrl}/chat`);
+
+    // 4. Enviar a requisição para o Agente Python no Railway
+    const response = await fetch(`${baseUrl}/chat`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${nvidiaKey}`,
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ model: llmModel, max_tokens, messages: fallbackMessages }),
+      body: JSON.stringify(pythonPayload)
     });
 
-    if (!fallbackResponse.ok) {
-      const err = await fallbackResponse.json().catch(() => ({}));
-      throw new Error((err as any)?.error?.message || `GLM HTTP ${fallbackResponse.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[PROXY ERROR] O Agente Python retornou um erro:', errorText);
+      throw new Error(`Erro do Agente Python HTTP ${response.status}: ${errorText}`);
     }
 
-    const fallbackData = await fallbackResponse.json();
-    const text = (fallbackData as any).choices?.[0]?.message?.content || '';
-    return res.status(200).json({ content: [{ text }] });
+    // Retorno do Python Server costuma ser: { "response": "texto", "agent_id": "...", "user_id": "...", ... }
+    const pyData = await response.json();
+    const assistantReply = pyData.response || "O agente processou a resposta, mas o formato de retorno não é legível.";
+
+    // 5. Formatar a resposta DE VOLTA para o modelo que o Frontend espera (padrão Anthropic/OpenAI)
+    return res.status(200).json({
+      content: [
+        { text: assistantReply }
+      ]
+    });
+
   } catch (err: any) {
-    console.error('NVIDIA fallback error:', err.message);
+    console.error('Erro na Vercel Function Serverless ao tentar contatar o Python Agent:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
