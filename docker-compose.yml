@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # Agente Python FastAPI
+  agent:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+      - LLM_MODEL=z-ai/glm4.7
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_ANON_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - CHROMA_PATH=/app/chroma_db
+      - AGENT_PORT=8000
+      - AGENT_HOST=0.0.0.0
+    volumes:
+      - ./agent:/app
+      - chroma_data:/app/chroma_db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Gateway Node.js + Frontend Vite
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - VITE_SUPABASE_URL=${SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - VITE_NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - PYTHON_AGENT_URL=http://agent:8000
+    depends_on:
+      agent:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./server.ts:/app/server.ts
+      - ./package.json:/app/package.json
+      - ./vite.config.ts:/app/vite.config.ts
+      - node_modules:/app/node_modules
+
+volumes:
+  chroma_data:
+  node_modules:
+
+networks:
+  default:
+    name: jarvis-network

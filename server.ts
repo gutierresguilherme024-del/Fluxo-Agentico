@@ -2,12 +2,16 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
 import path from "path";
+import http from "http";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 
 const db = new Database("soulnode.db");
 db.pragma("foreign_keys = ON");
 
-// Python Agent URL (configurável por variável de ambiente)
+// Python Agent Configuration
 const PYTHON_AGENT_URL = process.env.PYTHON_AGENT_URL || "http://localhost:8000";
 
 // Initialize database
@@ -61,12 +65,48 @@ if (companyCount.count === 0) {
   insertAgent.run("1", "c1", "Jarvis", "Voce eh o Jarvis, um assistente inteligente e amigavel que ajuda com tarefas de programacao e automacao.", "claude-opus-4-6", "#3b82f6", null, JSON.stringify(["Programacao", "Automacao", "Analise"]));
 }
 
+// Proxy function for Python Agent
+function proxyToPythonAgent(req: express.Request, res: express.Response, targetPath: string) {
+  const url = new URL(targetPath, PYTHON_AGENT_URL);
+
+  const options: http.RequestOptions = {
+    hostname: url.hostname,
+    port: url.port || (url.protocol === 'https:' ? 443 : 80),
+    path: url.pathname + url.search,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: url.host,
+    },
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+    proxyRes.pipe(res, { end: true });
+  });
+
+  proxyReq.on("error", (err) => {
+    console.error("Agent proxy error:", err);
+    res.status(503).json({
+      error: "Python Agent unavailable",
+      message: "The voice agent is currently offline. Please try again later.",
+      docs: `${PYTHON_AGENT_URL}/docs`
+    });
+  });
+
+  if (req.body && Object.keys(req.body).length > 0) {
+    proxyReq.write(JSON.stringify(req.body));
+  }
+  proxyReq.end();
+}
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
   app.use(express.json({ limit: '50mb' }));
 
+<<<<<<< HEAD
   // CORS middleware
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
@@ -76,6 +116,26 @@ async function startServer() {
       res.sendStatus(200);
     } else {
       next();
+=======
+  // Python Agent Proxy Routes
+  app.all("/api/agent/*", (req, res) => {
+    const targetPath = req.path.replace("/api/agent", "") || "/";
+    proxyToPythonAgent(req, res, targetPath);
+  });
+
+  app.all("/api/voice/*", (req, res) => {
+    const targetPath = "/voice" + (req.path.replace("/api/voice", "") || "/");
+    proxyToPythonAgent(req, res, targetPath);
+  });
+
+  app.get("/api/agent-status", async (req, res) => {
+    try {
+      const response = await fetch(`${PYTHON_AGENT_URL}/health`);
+      const data = await response.json();
+      res.json({ online: true, ...data });
+    } catch {
+      res.json({ online: false, message: "Python Agent is offline" });
+>>>>>>> 3eb5769 (feat(jarvis-agent): Add Python FastAPI agent with voice integration)
     }
   });
 
