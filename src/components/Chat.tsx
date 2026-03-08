@@ -120,59 +120,36 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      
-      // Simulate a tool call if the message looks like a command
-      let toolCalls: ToolCall[] = [];
-      if (input.toLowerCase().includes('search') || input.toLowerCase().includes('run') || input.toLowerCase().includes('read')) {
-        const type = input.toLowerCase().includes('search') ? 'search_docs' : (input.toLowerCase().includes('run') ? 'bash' : 'read');
-        const toolId = Math.random().toString(36).substring(7);
-        
-        const initialToolCall: ToolCall = { id: toolId, type, input: input.split(' ').slice(1).join(' ') || input, status: 'running' };
-        toolCalls.push(initialToolCall);
-        
-        // Add a temporary message with the tool call
-        setMessages(prev => [...prev, { role: 'model', content: '', toolCalls: [initialToolCall] }]);
-        
-        const output = await simulateToolCall(type, initialToolCall.input);
-        
-        // Update the tool call with output
-        setMessages(prev => {
-          const last = [...prev];
-          const msg = last[last.length - 1];
-          if (msg.toolCalls) {
-            msg.toolCalls = msg.toolCalls.map(tc => tc.id === toolId ? { ...tc, output, status: 'success' } : tc);
-          }
-          return last;
-        });
+      // Call Python Agent via proxy (server.ts)
+      const response = await fetch('/api/agent/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          agent_id: agent?.id || 'default',
+          soul: agent?.soul || 'You are a helpful assistant.',
+          user_id: 'user_default',
+          message: input,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
-      const response = await ai.models.generateContent({
-        model: agent?.model || 'gemini-3-flash-preview',
-        contents: [...messages, userMessage].map(m => ({
-          role: m.role,
-          parts: [{ text: m.content }]
-        })),
-        config: {
-          systemInstruction: (agent?.soul || 'You are a helpful AI assistant.') + (agent?.skills?.length ? `\n\nYour skills: ${agent.skills.join(', ')}` : "") + "\n\nIf the user asks to run a command or search, acknowledge the tool output provided above.",
-        }
-      });
+      const data = await response.json();
+      const aiContent = data.response || data.content || "I'm sorry, I couldn't generate a response.";
 
-      const aiContent = response.text || "I'm sorry, I couldn't generate a response.";
-      
-      setMessages(prev => {
-        const last = [...prev];
-        const lastMsg = last[last.length - 1];
-        if (lastMsg.role === 'model' && lastMsg.toolCalls) {
-          lastMsg.content = aiContent;
-          return [...last];
-        }
-        return [...prev, { role: 'model', content: aiContent }];
-      });
+      setMessages(prev => [...prev, { role: 'model', content: aiContent }]);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Chat error:', error);
-      setMessages(prev => [...prev, { role: 'model', content: "Error: Failed to connect to the AI soul." }]);
+      setMessages(prev => [...prev, {
+        role: 'model',
+        content: `Error: ${error?.message || 'Failed to connect to Agent. Make sure the Python agent is running.'}`
+      }]);
     } finally {
       setIsLoading(false);
     }
