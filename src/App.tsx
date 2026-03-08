@@ -37,9 +37,11 @@ export default function App() {
   const companyFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchCompanies();
-    fetchAgents();
-    fetchWorkflows();
+    // Skip data fetching in production - using demo data instead
+    // In production, data would come from Supabase directly if needed
+    setCompanies([]);
+    setAgents([]);
+    setWorkflows([]);
   }, []);
 
   const fetchCompanies = async () => {

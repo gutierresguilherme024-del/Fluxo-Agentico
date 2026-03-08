@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Send, 
-  Bot, 
-  User, 
-  ChevronDown, 
-  Workflow as WorkflowIcon, 
+import {
+  Send,
+  Bot,
+  User,
+  ChevronDown,
+  Workflow as WorkflowIcon,
   Plus,
   Terminal,
   Code,
@@ -26,7 +26,6 @@ import {
   Play
 } from 'lucide-react';
 import { Agent, Workflow, Message } from '../types';
-import { GoogleGenAI } from '@google/genai';
 
 interface ToolCall {
   id: string;
