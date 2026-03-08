@@ -17,7 +17,6 @@ interface ChatMessage {
     timestamp: Date;
 }
 
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || '';
 
 export default function VoiceAgent({ agent, onClose }: VoiceAgentProps) {
     const [status, setStatus] = useState<AgentStatus>('idle');
@@ -79,70 +78,22 @@ export default function VoiceAgent({ agent, onClose }: VoiceAgentProps) {
             const systemPrompt = agent.soul ||
                 `Você é ${agent.name}, um assistente de inteligência artificial. Responda sempre em português do Brasil. Seja útil, direto e inteligente.`;
 
-            let assistantText = '';
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system: systemPrompt,
+                    messages: conversationHistory.current,
+                }),
+            });
 
-            try {
-                // Tenta Anthropic Primeiro
-                const response = await fetch('https://api.anthropic.com/v1/messages', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key': ANTHROPIC_API_KEY,
-                        'anthropic-version': '2023-06-01',
-                        'anthropic-dangerous-direct-browser-access': 'true',
-                    },
-                    body: JSON.stringify({
-                        model: 'claude-3-5-sonnet-20241022',
-                        max_tokens: 1024,
-                        system: systemPrompt,
-                        messages: conversationHistory.current,
-                    }),
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData?.error?.message || `Erro ${response.status}`);
-                }
-
-                const data = await response.json();
-                assistantText = data.content?.[0]?.text || 'Não consegui processar sua mensagem.';
-
-            } catch (anthropicError: any) {
-                console.warn('Anthropic falhou, tentando NVIDIA GLM fallback...', anthropicError.message);
-
-                // Fallback para NVIDIA GLM (formato OpenAI)
-                const nvidiaKey = import.meta.env.VITE_NVIDIA_API_KEY;
-                const nvidiaBaseUrl = import.meta.env.VITE_NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1';
-                const llmModel = import.meta.env.VITE_LLM_MODEL || 'z-ai/glm4.7';
-
-                if (!nvidiaKey) {
-                    throw anthropicError; // Se não tem fallback, estoura o erro original da Anthropic
-                }
-
-                const fallbackResponse = await fetch(`${nvidiaBaseUrl}/chat/completions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${nvidiaKey}`,
-                    },
-                    body: JSON.stringify({
-                        model: llmModel,
-                        max_tokens: 1024,
-                        messages: [
-                            { role: 'system', content: systemPrompt },
-                            ...conversationHistory.current
-                        ],
-                    }),
-                });
-
-                if (!fallbackResponse.ok) {
-                    const errData = await fallbackResponse.json().catch(() => ({}));
-                    throw new Error(`Fallback falhou: ${errData?.error?.message || fallbackResponse.status}`);
-                }
-
-                const fallbackData = await fallbackResponse.json();
-                assistantText = fallbackData.choices?.[0]?.message?.content || 'Não consegui processar sua mensagem via GLM.';
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error((errData as any)?.error || `Erro ${response.status}`);
             }
+
+            const data = await response.json();
+            const assistantText = (data as any).content?.[0]?.text || 'Não consegui processar sua mensagem.';
 
             // Adiciona resposta ao histórico
             conversationHistory.current.push({ role: 'assistant', content: assistantText });
@@ -157,15 +108,9 @@ export default function VoiceAgent({ agent, onClose }: VoiceAgentProps) {
 
         } catch (err: any) {
             console.error('Jarvis error:', err);
-
-            let errorMsg = err.message || 'Conexão falhou';
-            if (errorMsg.includes('model: claude')) {
-                errorMsg = "Sua chave da Anthropic não tem permissão para usar este modelo. Verifique seus limites/acessos na API da Anthropic.";
-            }
-
             setMessages(prev => [...prev, {
                 role: 'agent',
-                content: `⚠️ Erro: ${errorMsg}`,
+                content: `⚠️ Erro: ${err.message || 'Conexão falhou'}`,
                 timestamp: new Date(),
             }]);
             setStatus('idle');

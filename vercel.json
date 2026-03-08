@@ -1,18 +1,16 @@
 {
   "buildCommand": "npm run build",
-  "devCommand":  "npm run dev",
+  "devCommand": "npm run dev",
   "outputDirectory": "dist",
   "framework": "vite",
   "env": {
     "VITE_SUPABASE_URL": "@supabase_url",
     "VITE_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "VITE_NVIDIA_API_KEY": "@nvidia_api_key",
-    "VITE_NVIDIA_BASE_URL": "@nvidia_base_url",
-    "VITE_LLM_MODEL": "@llm_model",
-    "AGENT_PORT": "8000",
-    "AGENT_HOST": "0.0.0.0"
+    "ANTHROPIC_API_KEY": "@anthropic_api_key",
+    "NVIDIA_API_KEY": "@nvidia_api_key",
+    "NVIDIA_BASE_URL": "@nvidia_base_url",
+    "LLM_MODEL": "@llm_model"
   },
-  "buildCommand": "npm run build",
   "ignoreCommand": "git diff --quiet HEAD~ HEAD -- . ':!.github'",
   "git": {
     "deploymentEnabled": {

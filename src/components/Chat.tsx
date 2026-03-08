@@ -119,92 +119,35 @@ export default function Chat({ agent, agents, workflows, mode = 'agent', onAgent
     setInput('');
     setIsLoading(true);
 
-    const anthropicKey = (import.meta.env as any).VITE_ANTHROPIC_API_KEY || '';
     const systemPrompt = (agent?.soul || 'You are Claude, a highly capable AI assistant.') + "\n\nResponda sempre em português do Brasil.";
 
     try {
-      let aiContent = "";
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system: systemPrompt,
+          messages: messages.concat(userMessage).map((m: ExtendedMessage) => ({
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: m.content
+          })),
+        }),
+      });
 
-      try {
-        // Usando Claude 3.5 Sonnet para a interface "Claude Code"
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': anthropicKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-3-5-sonnet-20241022',
-            max_tokens: 1024,
-            system: systemPrompt,
-            messages: messages.concat(userMessage).map((m: ExtendedMessage) => ({
-              role: m.role === 'user' ? 'user' : 'assistant',
-              content: m.content
-            })),
-          }),
-        });
-
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          throw new Error(err?.error?.message || `HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        aiContent = data.content?.[0]?.text || "I'm sorry, I couldn't generate a response.";
-
-      } catch (anthropicError: any) {
-        console.warn('Anthropic falhou, tentando NVIDIA GLM fallback no Chat...', anthropicError.message);
-
-        // Fallback para NVIDIA GLM (formato OpenAI)
-        const nvidiaKey = (import.meta.env as any).VITE_NVIDIA_API_KEY;
-        const nvidiaBaseUrl = (import.meta.env as any).VITE_NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1';
-        const llmModel = (import.meta.env as any).VITE_LLM_MODEL || 'z-ai/glm4.7';
-
-        if (!nvidiaKey) {
-          throw anthropicError; // Se não tem fallback, estoura o erro original
-        }
-
-        const fallbackResponse = await fetch(`${nvidiaBaseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${nvidiaKey}`,
-          },
-          body: JSON.stringify({
-            model: llmModel,
-            max_tokens: 1024,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...messages.concat(userMessage).map((m: ExtendedMessage) => ({
-                role: m.role === 'user' ? 'user' : 'assistant',
-                content: m.content || ""
-              }))
-            ],
-          }),
-        });
-
-        if (!fallbackResponse.ok) {
-          const errData = await fallbackResponse.json().catch(() => ({}));
-          throw new Error(`Fallback falhou: ${errData?.error?.message || fallbackResponse.status}`);
-        }
-
-        const fallbackData = await fallbackResponse.json();
-        aiContent = fallbackData.choices?.[0]?.message?.content || "I'm sorry, I couldn't generate a response via GLM.";
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error((err as any)?.error || `HTTP ${response.status}`);
       }
 
+      const data = await response.json();
+      const aiContent = data.content?.[0]?.text || "Não consegui gerar uma resposta.";
       setMessages((prev: ExtendedMessage[]) => [...prev, { role: 'model', content: aiContent }]);
 
     } catch (error: any) {
-      console.error('Claude Chat error:', error);
-      let errorMsg = error.message;
-      if (errorMsg.includes('model: claude')) {
-        errorMsg = "Sua chave não tem permissão para este modelo. Falha no fallback.";
-      }
+      console.error('Chat error:', error);
       setMessages((prev: ExtendedMessage[]) => [...prev, {
         role: 'model',
-        content: `❌ Erro no Claude Code: ${errorMsg}. Verifique as chaves de API.`
+        content: `❌ Erro: ${error.message}`
       }]);
     } finally {
       setIsLoading(false);
