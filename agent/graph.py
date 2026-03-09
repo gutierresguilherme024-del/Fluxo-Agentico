@@ -42,11 +42,15 @@ class VoiceAgent:
 {memory_section}"""
 
     async def _call_llm(self, messages: list) -> str:
-        """Chama o LLM (Prioriza Anthropic Claude se disponível, senão NVIDIA GLM)"""
+        """Chama o LLM (Prioriza Anthropic Claude)"""
         
-        # 1. Se tiver chave da Anthropic, usa o Claude (Principal)
+        # 1. Log de diagnóstico (Mascarado)
+        ant_key = ANTHROPIC_API_KEY[:4] + "***" if ANTHROPIC_API_KEY else "VAZIA"
+        nvi_key = NVIDIA_API_KEY[:4] + "***" if NVIDIA_API_KEY else "VAZIA"
+        print(f"[DEBUG] Agente {self.agent_id} | Anthropic: {ant_key} | NVIDIA: {nvi_key}")
+
+        # 2. Se tiver chave da Anthropic, usa o Claude
         if ANTHROPIC_API_KEY:
-            print(f"[LLM] Usando Anthropic Claude para agente {self.agent_id}")
             try:
                 client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
                 
@@ -62,11 +66,11 @@ class VoiceAgent:
                 )
                 return response.content[0].text
             except Exception as e:
-                print(f"[LLM ERROR] Erro no Claude: {str(e)}. Tentando Fallback...")
+                print(f"[CRITICAL ERROR] Anthropic falhou: {str(e)}")
+                raise ValueError(f"Erro na Anthropic: {str(e)}")
 
-        # 2. Fallback para NVIDIA GLM (Apenas se a chave existir)
-        if NVIDIA_API_KEY:
-            print(f"[LLM] Usando Fallback NVIDIA GLM para agente {self.agent_id}")
+        # 3. Fallback apenas se Anthropic não existir e NVIDIA sim
+        elif NVIDIA_API_KEY:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
                     f"{NVIDIA_BASE_URL}/chat/completions",
@@ -85,8 +89,7 @@ class VoiceAgent:
                 data = response.json()
                 return data["choices"][0]["message"]["content"]
         
-        # 3. Nenhuma chave disponível
-        raise ValueError("Nenhuma chave de IA configurada no Agente Python (ANTHROPIC_API_KEY ou NVIDIA_API_KEY). Verifique o Railway.")
+        raise ValueError("Nenhuma chave de IA foi encontrada no servidor Python (Railway). Verifique as variáveis ANTHROPIC_API_KEY ou NVIDIA_API_KEY.")
 
     def _extract_tool_call(self, text: str) -> tuple[Optional[str], Optional[str], str]:
         """Extrai chamada de ferramenta do texto do LLM"""
