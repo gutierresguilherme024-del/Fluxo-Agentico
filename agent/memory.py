@@ -5,7 +5,7 @@ import os
 import json
 from datetime import datetime
 from typing import Optional
-from config import CHROMA_PATH, CHROMA_INITIALIZATION_TIMEOUT, SUPABASE_URL, SUPABASE_KEY
+from config import CHROMA_PATH, SUPABASE_URL, SUPABASE_KEY
 
 try:
     import chromadb
@@ -30,16 +30,17 @@ class AgentMemory:
         if not CHROMA_AVAILABLE:
             self.chroma_collection = None
             return
-        
+            
         try:
             import signal
+            from config import CHROMA_INITIALIZATION_TIMEOUT
             
             def timeout_handler(signum, frame):
                 raise TimeoutError("ChromaDB initialization timeout")
             
             # Set timeout
             signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(CHROMA_INITIALIZATION_TIMEOUT)
+            signal.alarm(CHROMA_INITIALIZATION_TIMEOUT)  # 30s default
             
             os.makedirs(CHROMA_PATH, exist_ok=True)
             self.chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
