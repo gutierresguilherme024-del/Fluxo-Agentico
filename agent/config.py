@@ -1,13 +1,20 @@
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
 
 load_dotenv(dotenv_path="../.env")
 
-# LLM (Prioridade: Anthropic)
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
+def get_env_flexible(primary_key, fallbacks=[]):
+    keys = [primary_key] + fallbacks
+    for k in keys:
+        val = os.getenv(k, "").strip()
+        if val:
+            print(f"[CONFIG] Chave encontrada usando o nome: {k}")
+            return val
+    return ""
 
-# Fallback (NVIDIA/GLM)
-NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", os.getenv("VITE_NVIDIA_API_KEY", "")).strip()
+# LLM (Scanner Flexível)
+ANTHROPIC_API_KEY = get_env_flexible("ANTHROPIC_API_KEY", ["ANTHROPIC_KEY", "CLAUDE_API_KEY", "CLAUDE_KEY"])
+NVIDIA_API_KEY = get_env_flexible("NVIDIA_API_KEY", ["VITE_NVIDIA_API_KEY", "NVIDIA_KEY", "GLM_KEY"])
 NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", os.getenv("VITE_NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")).strip()
 LLM_MODEL = os.getenv("LLM_MODEL", os.getenv("VITE_LLM_MODEL", "z-ai/glm4.7")).strip()
 

@@ -73,11 +73,15 @@ class ResetRequest(BaseModel):
 
 @app.get("/health")
 async def health():
+    from config import ANTHROPIC_API_KEY, NVIDIA_API_KEY
     return {
         "status": "online",
         "service": "SoulForge Voice Agent",
         "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "has_anthropic": bool(ANTHROPIC_API_KEY),
+        "has_nvidia": bool(NVIDIA_API_KEY),
+        "agent_count": len(_agents)
     }
 
 
