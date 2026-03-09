@@ -33,5 +33,5 @@ RUN mkdir -p /app/chroma_db && \
 
 USER appuser
 
-# Start obrigatório para Railway (shell form + debug forte)
-CMD echo "[STARTUP] PORT=${PORT}" && echo "[DEBUG] Uvicorn iniciando em ${PORT:-8080}" && python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --log-level info
+# Start FINAL para Railway (shell form pura + debug pesado)
+CMD sh -c 'echo "[STARTUP] Railway PORT=${PORT}" && echo "[DEBUG] Uvicorn rodando em ${PORT:-8080}" && python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --log-level info'
