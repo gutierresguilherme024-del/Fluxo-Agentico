@@ -1,3 +1,8 @@
+# Node modules (frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
+
 # Python
 __pycache__/
 *.py[cod]
@@ -8,14 +13,8 @@ __pycache__/
 dist/
 build/
 
-# Node (don't copy frontend to backend)
-node_modules/
-src/
-dist/
-
-# Local data (NÃO COPIAR PARA CONTAINER!)
+# Local data
 agent/chroma_db/
-chroma_db/
 *.sqlite3
 *.db
 
@@ -30,6 +29,22 @@ chroma_db/
 *.swp
 *.swo
 
+# OS
+.DS_Store
+Thumbs.db
+
 # Git
 .git/
 .gitignore
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+agent/.dependencies-installed
