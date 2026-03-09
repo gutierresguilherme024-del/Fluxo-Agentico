@@ -24,6 +24,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_K
 
 # ChromaDB
 CHROMA_PATH = os.getenv("CHROMA_PATH", "./chroma_db").strip()
+CHROMA_INITIALIZATION_TIMEOUT = int(os.getenv("CHROMA_TIMEOUT", "30"))
 
 # Servidor
 PORT = int(os.getenv("PORT", os.getenv("AGENT_PORT", "8000")))

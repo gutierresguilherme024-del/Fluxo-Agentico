@@ -41,7 +41,13 @@ RUN mkdir -p /app/chroma_db && chown -R appuser:appuser /app/chroma_db && chmod 
 # Switch to non-root user
 USER appuser
 
+# DEBUG: Print environment variables
+RUN echo "=== DOCKERFILE DEBUG ===" && \
+    echo "Expected PORT variable: ${PORT:-NOT_SET_WILL_USE_8000}" && \
+    echo "PYTHONPATH: ${PYTHONPATH}" && \
+    echo "======================="
+
 # Railway provides PORT env var. 
 # CRITICAL: Match Railway Networking settings (8000).
 # Using explicitly 8000 as fallback.
-CMD ["/bin/sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --log-level info"]
+CMD ["/bin/sh", "-c", "echo '[STARTUP] PORT=${PORT:-8000}' && python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --log-level info"]

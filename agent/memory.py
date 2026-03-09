@@ -5,7 +5,7 @@ import os
 import json
 from datetime import datetime
 from typing import Optional
-from config import CHROMA_PATH, SUPABASE_URL, SUPABASE_KEY
+from config import CHROMA_PATH, CHROMA_INITIALIZATION_TIMEOUT, SUPABASE_URL, SUPABASE_KEY
 
 try:
     import chromadb
@@ -30,12 +30,33 @@ class AgentMemory:
         if not CHROMA_AVAILABLE:
             self.chroma_collection = None
             return
-        os.makedirs(CHROMA_PATH, exist_ok=True)
-        self.chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
-        self.chroma_collection = self.chroma_client.get_or_create_collection(
-            name=f"agent_{self.agent_id}_memory",
-            metadata={"hnsw:space": "cosine"}
-        )
+        
+        try:
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError("ChromaDB initialization timeout")
+            
+            # Set timeout
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(CHROMA_INITIALIZATION_TIMEOUT)
+            
+            os.makedirs(CHROMA_PATH, exist_ok=True)
+            self.chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+            self.chroma_collection = self.chroma_client.get_or_create_collection(
+                name=f"agent_{self.agent_id}_memory",
+                metadata={"hnsw:space": "cosine"}
+            )
+            
+            signal.alarm(0)  # Cancel timeout
+            print("[MEMORY] ChromaDB initialized successfully")
+            
+        except TimeoutError:
+            print("⚠️ [MEMORY] ChromaDB initialization timeout - running without vector memory")
+            self.chroma_collection = None
+        except Exception as e:
+            print(f"⚠️ [MEMORY] ChromaDB initialization failed: {e} - running without vector memory")
+            self.chroma_collection = None
 
     def _init_supabase(self):
         if not SUPABASE_AVAILABLE:
@@ -99,7 +120,9 @@ class AgentMemory:
                 "created_at": datetime.now().isoformat()
             }).execute()
         except Exception as e:
-            print(f"Supabase save error: {e}")
+            # ERRO DETECTADO: Logar imediatamente para auditoria em vez de silenciar
+            print(f"[CRITICAL ERROR] Falha ao persistir conversa no Supabase: {str(e)}")
+            # Em produção, você deveria ter um sistema de retry ou DLQ aqui
 
     def get_conversation_history(self, user_id: str, agent_id: str, limit: int = 10) -> list:
         """Recupera histórico de conversas do Supabase"""
