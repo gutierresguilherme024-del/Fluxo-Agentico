@@ -47,7 +47,7 @@ RUN echo "=== DOCKERFILE DEBUG ===" && \
     echo "PYTHONPATH: ${PYTHONPATH}" && \
     echo "======================="
 
-# Railway provides PORT env var. 
-# CRITICAL: Match Railway Networking settings (8000).
-# Using explicitly 8000 as fallback.
-CMD ["/bin/sh", "-c", "echo '[STARTUP] PORT=${PORT:-8000}' && python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --log-level info"]
+# Railway provides PORT env var.
+# CRITICAL: Explicitly set PORT with fallback, then use it consistently.
+# This ensures Railway proxy can route correctly.
+CMD ["/bin/sh", "-c", "PORT=${PORT:-8000} && echo \"[STARTUP] PORT=$PORT\" && python -m uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info"]
