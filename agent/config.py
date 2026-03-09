@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="../.env")
+load_dotenv()
 
 def get_env_flexible(primary_key, fallbacks=[]):
     keys = [primary_key] + fallbacks
