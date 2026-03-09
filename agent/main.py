@@ -115,57 +115,12 @@ async def voice_input(
     user_id: str = "default",
     audio: UploadFile = File(...)
 ):
-    """Recebe áudio, transcreve com Whisper e retorna resposta em texto + áudio TTS"""
-    try:
-        # Salvar áudio temporariamente
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            content = await audio.read()
-            tmp.write(content)
-            tmp_path = tmp.name
-
-        # Transcrever com Whisper
-        try:
-            from voice.stt import transcribe_audio
-            transcription = transcribe_audio(tmp_path)
-        except ImportError:
-            transcription = "Whisper não instalado. Envie texto via /chat"
-        finally:
-            os.unlink(tmp_path)
-
-        if not transcription or len(transcription.strip()) < 2:
-            raise HTTPException(status_code=400, detail="Não foi possível transcrever o áudio")
-
-        # Processsar com o agente
-        agent = get_agent(agent_id, soul, user_id)
-        response_text = await agent.chat(transcription)
-
-        # Gerar áudio TTS
-        try:
-            from voice.tts import synthesize_speech
-            audio_bytes = synthesize_speech(response_text)
-            
-            return StreamingResponse(
-                io.BytesIO(audio_bytes),
-                media_type="audio/wav",
-                headers={
-                    "X-Transcription": transcription,
-                    "X-Response-Text": response_text[:200]
-                }
-            )
-        except ImportError:
-            # Se TTS não disponível, retorna JSON com texto
-            return JSONResponse({
-                "transcription": transcription,
-                "response": response_text,
-                "tts_available": False
-            })
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+    """Fallback quando voz não está instalada"""
+    return JSONResponse({
+        "transcription": "Módulo de voz em manutenção (redeploy do cérebro)",
+        "response": "Por favor, use o chat de texto enquanto atualizo meus circuitos de voz.",
+        "tts_available": False
+    })
 @app.get("/memory/{agent_id}/{user_id}")
 async def get_memories(agent_id: str, user_id: str):
     """Retorna todas as memórias de um usuário para um agente"""
