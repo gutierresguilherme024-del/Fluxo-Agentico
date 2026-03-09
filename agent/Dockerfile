@@ -1,24 +1,13 @@
 # ==============================================================================
-# STAGE 1: Builder - Instala dependências Python
-# ==============================================================================
-FROM python:3.12-slim AS builder
-
-WORKDIR /build
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy and install Python dependencies
-# Railway context = repo root, so paths are relative to root
-COPY agent/requirements.txt .
-RUN pip install --user --no-cache-dir --no-warn-script-location -r requirements.txt
-
-# ==============================================================================
-# STAGE 2: Runtime - Container final otimizado
+# Production Dockerfile for Railway - Simplified & Robust
 # ==============================================================================
 FROM python:3.12-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    HOME=/app
 
 WORKDIR /app
 
@@ -26,31 +15,26 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     curl \
+    gcc \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# Copy only requirements first to leverage caching
+COPY agent/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy Python dependencies from builder
-COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
+# Copy application code
+# Since build context is repo root, we prefix with agent/
+COPY agent/main.py agent/config.py agent/graph.py agent/memory.py agent/tools.py ./
+COPY agent/voice/ ./voice/
 
-# Copy application code (Railway context = repo root)
-COPY --chown=appuser:appuser agent/main.py agent/config.py agent/graph.py agent/memory.py agent/tools.py ./
-COPY --chown=appuser:appuser agent/voice/ ./voice/
+# Create empty chroma_db directory with permissions
+RUN mkdir -p /app/chroma_db && chmod 777 /app/chroma_db
 
-# Create empty chroma_db directory (runtime will populate)
-RUN mkdir -p chroma_db && chown appuser:appuser chroma_db
+# Railway provides PORT env var. Fallback to 8080 for testing.
+ENV PORT=8080
 
-# Set environment variables
-ENV PATH=/home/appuser/.local/bin:$PATH \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app
-
-# Switch to non-root user
-USER appuser
-
-# Run application (shell form to expand $PORT)
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --log-level info
+# Use python -m uvicorn for better module resolution
+# Shell form to enable $PORT expansion
+CMD python -m uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --log-level info
