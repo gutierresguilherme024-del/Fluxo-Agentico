@@ -35,11 +35,13 @@ RUN pip install --no-cache-dir -U pip && \
 COPY --chown=appuser:appuser main.py config.py graph.py memory.py tools.py ./
 COPY --chown=appuser:appuser voice/ ./voice/
 
-# Create empty chroma_db directory (runtime will populate)
-RUN mkdir -p /app/chroma_db && chown appuser:appuser /app/chroma_db
+# Create empty chroma_db directory with full permissions for the app
+RUN mkdir -p /app/chroma_db && chown -R appuser:appuser /app/chroma_db && chmod -R 777 /app/chroma_db
 
-# Switch to non-root user for security
+# Switch to non-root user
 USER appuser
 
-# Run application (shell form to expand $PORT)
+# Railway provides PORT env var. 
+# CRITICAL: Match Railway Networking settings (8000).
+# Using explicitly 8000 as fallback.
 CMD ["/bin/sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --log-level info"]
