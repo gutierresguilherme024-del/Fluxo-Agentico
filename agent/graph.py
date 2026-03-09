@@ -42,11 +42,13 @@ class VoiceAgent:
 {memory_section}"""
 
     async def _call_llm(self, messages: list) -> str:
-        """Chama o LLM (Prioriza Anthropic Claude e faz fallback para NVIDIA GLM se falhar)"""
+        """Chama o LLM (Prioriza Anthropic Claude e tenta NVIDIA GLM como fallback real)"""
+        
+        errors = []
         
         # 1. Tentar Anthropic Claude
         if ANTHROPIC_API_KEY:
-            print(f"[LLM] Tentando Anthropic Claude para agente {self.agent_id}")
+            print(f"[LLM] Tentando Anthropic Claude (Agente {self.agent_id})...")
             try:
                 client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
                 
@@ -62,13 +64,13 @@ class VoiceAgent:
                 )
                 return response.content[0].text
             except Exception as e:
-                print(f"[LLM ERROR] Claude falhou: {str(e)}")
-                if not NVIDIA_API_KEY:
-                    raise ValueError(f"Claude falhou e não há chave NVIDIA para fallback. Erro: {str(e)}")
+                err_msg = f"Anthropic falhou: {str(e)}"
+                print(f"[LLM ERROR] {err_msg}")
+                errors.append(err_msg)
 
-        # 2. Tentar NVIDIA GLM (Fallback ou Principal se Anthropic não existir)
+        # 2. Tentar NVIDIA GLM (Fallback ou Principal)
         if NVIDIA_API_KEY:
-            print(f"[LLM] Usando NVIDIA GLM para agente {self.agent_id}")
+            print(f"[LLM] Usando Fallback NVIDIA GLM (Agente {self.agent_id})...")
             try:
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     response = await client.post(
@@ -84,14 +86,22 @@ class VoiceAgent:
                             "max_tokens": 1024,
                         }
                     )
-                    response.raise_for_status()
+                    # Fornecer erro detalhado se falhar
+                    if response.status_code != 200:
+                        raise ValueError(f"HTTP {response.status_code}: {response.text}")
+                        
                     data = response.json()
                     return data["choices"][0]["message"]["content"]
             except Exception as e:
-                print(f"[LLM ERROR] NVIDIA GLM falhou: {str(e)}")
-                raise ValueError(f"Ambos LLMs falharam. Erro NVIDIA: {str(e)}")
+                err_msg = f"NVIDIA GLM falhou: {str(e)}"
+                print(f"[LLM ERROR] {err_msg}")
+                errors.append(err_msg)
         
-        raise ValueError("Nenhuma chave de IA foi encontrada ou configurada (ANTHROPIC_API_KEY ou NVIDIA_API_KEY).")
+        # 3. Se chegou aqui, nada funcionou
+        if not errors:
+            raise ValueError("Configuração Inválida: Nenhuma chave de API (Anthropic/NVIDIA) foi encontrada no ambiente.")
+        
+        raise ValueError(f"Falha Total na Conexão com IA. Diagnóstico: {' | '.join(errors)}")
 
     def _extract_tool_call(self, text: str) -> tuple[Optional[str], Optional[str], str]:
         """Extrai chamada de ferramenta do texto do LLM"""
