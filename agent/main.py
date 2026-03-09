@@ -71,6 +71,11 @@ class ResetRequest(BaseModel):
     user_id: str
 
 
+@app.get("/")
+async def root():
+    return {"status": "alive", "message": "Jarvis online"}
+
+
 # ─── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/health")
