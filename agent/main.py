@@ -46,10 +46,12 @@ def get_agent(agent_id: str, soul: str, user_id: str) -> VoiceAgent:
 
 # ─── Modelos de Request ────────────────────────────────────────────────────────
 class ChatRequest(BaseModel):
-    agent_id: str
+    agent_id: str = "jarvis"
     soul: str = "Você é um assistente de voz inteligente. Responda sempre em português do Brasil de forma clara e natural."
+    system: Optional[str] = None # Fallback para o payload da Vercel/Frontend
     user_id: str = "default"
-    message: str
+    message: str = ""
+    messages: list = [] # NOVO CORTE DE HISTORICO - INJETAR DIRETO FRONT NO BACK
     session_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
@@ -73,29 +75,22 @@ class ResetRequest(BaseModel):
 
 @app.get("/health")
 async def health():
-    from config import ANTHROPIC_API_KEY, NVIDIA_API_KEY
-    return {
-        "status": "online",
-        "service": "SoulForge Voice Agent",
-        "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0",
-        "has_anthropic": bool(ANTHROPIC_API_KEY),
-        "has_nvidia": bool(NVIDIA_API_KEY),
-        "agent_count": len(_agents)
-    }
+    return {"status": "ok"}
 
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
     """Envia uma mensagem de texto ao agente e recebe uma resposta inteligente"""
     try:
-        agent = get_agent(req.agent_id, req.soul, req.user_id)
+        # Normalização de Soul/System
+        effective_soul = req.system or req.soul
+        agent = get_agent(req.agent_id, effective_soul, req.user_id)
         
         # Buscar quantas memórias serão usadas
         memory = AgentMemory(req.agent_id)
         memories = memory.search_memories(req.user_id, req.message, limit=5)
         
-        response_text = await agent.chat(req.message)
+        response_text = await agent.chat(user_message=req.message, external_messages=req.messages)
         
         return ChatResponse(
             response=response_text,
