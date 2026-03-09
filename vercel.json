@@ -3,14 +3,6 @@
   "devCommand": "npm run dev",
   "outputDirectory": "dist",
   "framework": "vite",
-  "env": {
-    "VITE_SUPABASE_URL": "@supabase_url",
-    "VITE_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "ANTHROPIC_API_KEY": "@anthropic_api_key",
-    "NVIDIA_API_KEY": "@nvidia_api_key",
-    "NVIDIA_BASE_URL": "@nvidia_base_url",
-    "LLM_MODEL": "@llm_model"
-  },
   "ignoreCommand": "git diff --quiet HEAD~ HEAD -- . ':!.github'",
   "git": {
     "deploymentEnabled": {
