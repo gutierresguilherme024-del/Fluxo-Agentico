@@ -24,10 +24,6 @@ chroma_db/
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
-
 # Git
 .git/
 .gitignore
@@ -35,8 +31,3 @@ Thumbs.db
 # Logs
 *.log
 logs/
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
