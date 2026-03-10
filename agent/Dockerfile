@@ -2,7 +2,9 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    HOST=0.0.0.0 \
+    PORT=8080
 
 WORKDIR /app
 
@@ -31,5 +33,7 @@ COPY . .
 RUN mkdir -p /app/chroma_db && chown -R appuser:appuser /app/chroma_db && chmod -R 777 /app/chroma_db
 
 USER appuser
+
+EXPOSE 8080
 
 CMD ["/bin/sh", "-c", "PORT=${PORT:-8000} && echo \"[STARTUP] PORT=$PORT\" && python -m uvicorn main:app --host 0.0.0.0 --port $PORT --log-level info"]
