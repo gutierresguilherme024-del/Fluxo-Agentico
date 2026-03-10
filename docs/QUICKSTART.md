@@ -7,7 +7,7 @@
 ```bash
 # Coloque suas chaves de API no .env
 # Depois:
-npm install
+cd frontend && npm install
 
 # Windows:
 start-dev.bat
@@ -20,7 +20,7 @@ chmod +x start-dev.sh && ./start-dev.sh
 
 ```bash
 # Agente Python esta rodando em: http://localhost:8000/docs
-# Frontend React esta rodando em: http://localhost:3000
+# Frontend React esta rodando em: http://localhost:5173
 # Teste a integracao antes de fazer deploy
 ```
 
@@ -37,6 +37,7 @@ vercel deploy --prod
 Escolha UMA opcao:
 
 ### Railway (Recomendado)
+
 ```bash
 npm install -g @railway/cli
 railway login
@@ -46,6 +47,7 @@ railway up
 ```
 
 ### Heroku
+
 ```bash
 heroku login
 heroku create seu-agente-name
@@ -53,6 +55,7 @@ git push heroku main
 ```
 
 ### Docker
+
 ```bash
 docker build -t jarvis -f agent/Dockerfile .
 docker push seu-registry/jarvis:latest
@@ -63,6 +66,7 @@ docker push seu-registry/jarvis:latest
 **Vercel Dashboard → Settings → Environment Variables**
 
 Adicione:
+
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_NVIDIA_API_KEY`
@@ -71,6 +75,7 @@ Adicione:
 **Agent (Railway/Heroku)**
 
 Adicione:
+
 - `NVIDIA_API_KEY`
 - `SUPABASE_URL`
 - `SUPABASE_KEY`
@@ -78,8 +83,10 @@ Adicione:
 ## 6. Update Agent URL
 
 Em `server.ts` linha 14:
+
 ```typescript
-const PYTHON_AGENT_URL = process.env.PYTHON_AGENT_URL || "https://seu-agent.railway.app";
+const PYTHON_AGENT_URL =
+  process.env.PYTHON_AGENT_URL || 'https://seu-agent.railway.app';
 ```
 
 ## ✅ Pronto!
@@ -91,11 +98,11 @@ Seu Jarvis esta agora em PRODUCAO!
 
 ## 📱 Troubleshooting
 
-| Problema | Solucao |
-|----------|---------|
+| Problema              | Solucao                                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
 | `ModuleNotFoundError` | `cd agent && python -m venv venv && source venv/bin/activate && pip install -r requirements-base.txt` |
-| Agente offline | Verifique logs: `railway logs` ou `vercel logs` |
-| CORS error | Adicione seu dominio em server.ts CORS config |
-| Build erro Vite | `rm -rf dist node_modules && npm install && npm run build` |
+| Agente offline        | Verifique logs: `railway logs` ou `vercel logs`                                                       |
+| CORS error            | Adicione seu dominio em server.ts CORS config                                                         |
+| Build erro Vite       | `rm -rf dist node_modules && npm install && npm run build`                                            |
 
 Ver PRODUCTION_SETUP.md para guia completo.

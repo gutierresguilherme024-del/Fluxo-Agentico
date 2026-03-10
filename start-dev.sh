@@ -31,9 +31,9 @@ if [ ! -f .env ]; then
 fi
 
 # Instalar dependências Node se necessário
-if [ ! -d "node_modules" ]; then
+if [ ! -d "frontend/node_modules" ]; then
     echo "${BLUE}📦 Instalando dependências Node...${NC}"
-    npm install
+    (cd frontend && npm install)
 fi
 
 # Instalar dependências Python se necessário
@@ -50,6 +50,9 @@ python main.py &
 PYTHON_PID=$!
 cd ..
 
+# Cleanup ao sair
+trap "kill $PYTHON_PID" EXIT
+
 # Dar tempo pro Python agent iniciar
 sleep 3
 
@@ -62,8 +65,5 @@ else
 fi
 
 # Iniciar frontend
-echo "${BLUE}🎨 Iniciando Frontend (porta 3000)...${NC}"
-npm run dev
-
-# Cleanup ao sair
-trap "kill $PYTHON_PID" EXIT
+echo "${BLUE}🎨 Iniciando Frontend (porta 5173)...${NC}"
+(cd frontend && npm run dev)

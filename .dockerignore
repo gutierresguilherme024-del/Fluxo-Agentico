@@ -1,5 +1,6 @@
 # Node modules (frontend)
 node_modules/
+frontend/node_modules/
 npm-debug.log
 yarn-error.log
 
@@ -17,6 +18,12 @@ build/
 agent/chroma_db/
 *.sqlite3
 *.db
+soulnode.db
+saveweb2zip-com-x-ai/
+
+# Large local source snapshots not needed for app containers
+openclaw_source/
+MCP Front-design system/
 
 # Environment
 .env

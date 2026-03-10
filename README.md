@@ -1,20 +1,48 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Fluxo Agentico
 
-# Run and deploy your AI Studio app
+Estrutura principal do projeto:
 
-This contains everything you need to run your app locally.
+- `frontend/` - app React/Vite
+- `agent/` - serviço Python/FastAPI
+- `docker-compose.yml` - orquestração local dos serviços
+- `docs/` - documentação operacional do projeto
 
-View your app in AI Studio: https://ai.studio/apps/b5d9b166-19b0-4718-9698-0651946a4699
+## Rodar local (scripts)
 
-## Run Locally
+Windows:
 
-**Prerequisites:**  Node.js
+```bat
+start-dev.bat
+```
 
+Linux/Mac:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+chmod +x start-dev.sh
+./start-dev.sh
+```
+
+Compatibilidade legada no Windows:
+
+```bat
+START_JARVIS.bat
+```
+
+## Rodar local (Docker)
+
+```bash
+docker compose up --build
+```
+
+Serviços:
+
+- Frontend: `http://localhost:5173`
+- Agent API: `http://localhost:8000`
+- Agent Docs: `http://localhost:8000/docs`
+
+## Documentação
+
+- [Quick Start](docs/QUICKSTART.md)
+- [Como Usar](docs/COMO_USAR.md)
+- [Production Setup](docs/PRODUCTION_SETUP.md)
+- [Resumo de Deployment](docs/RESUMO_DEPLOYMENT.md)

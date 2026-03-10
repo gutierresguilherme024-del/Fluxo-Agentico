@@ -32,9 +32,11 @@ if not exist .env (
 )
 
 REM Instalar dependências Node se necessário
-if not exist node_modules (
+if not exist frontend\node_modules (
     echo 📦 Instalando dependências Node...
+    cd frontend
     call npm install
+    cd ..
 )
 
 REM Instalar dependências Python se necessário
@@ -63,7 +65,8 @@ if !errorlevel! equ 0 (
 )
 
 REM Iniciar frontend
-echo 🎨 Iniciando Frontend (porta 3000)...
+echo 🎨 Iniciando Frontend (porta 5173)...
+cd frontend
 call npm run dev
 
 pause

@@ -3,24 +3,29 @@
 ## ✅ O que foi feito
 
 ### 1. **Arquivos de Configuração Criados**
-- `vercel.json` - Configuração do Vercel para o frontend
+
+- `frontend/vercel.json` - Configuração do Vercel para o frontend
 - `docker-compose.yml` - Stack local com Agent + Gateway
 - `agent/Dockerfile` - Container do agente Python
-- `Dockerfile.gateway` - Container do gateway Node.js
+- `frontend/Dockerfile` - Container do frontend Node.js/Vite
 - `agent/.dockerignore` - Otimizacoes de build Docker
 
 ### 2. **Scripts de Inicializacao**
+
 - `start-dev.sh` - Script para Linux/Mac
 - `start-dev.bat` - Script para Windows
+- `START_JARVIS.bat` - Wrapper legado para `start-dev.bat`
   - Instala dependencias automaticamente
   - Inicia agente Python (porta 8000)
-  - Inicia frontend (porta 3000)
+  - Inicia frontend (porta 5173)
 
 ### 3. **Documentacao**
+
 - `PRODUCTION_SETUP.md` - Guia completo de deployment
 - `requirements-base.txt` - Dependencias Python essenciais (alternativa ao requirements.txt)
 
 ### 4. **Arquitetura de Producao**
+
 ```
 Frontend (React/Vite)  ------>  Vercel
                               (Deployed)
@@ -44,6 +49,7 @@ Supabase (Database)
 ### 1. **Instalar Dependencias Python**
 
 **Opcao A: Python Virtual Environment (Recomendado)**
+
 ```bash
 cd agent
 python -m venv venv
@@ -56,6 +62,7 @@ pip install -r requirements-base.txt
 ```
 
 **Opcao B: Docker Compose**
+
 ```bash
 docker-compose up --build
 ```
@@ -63,6 +70,7 @@ docker-compose up --build
 ### 2. **Testar Localmente**
 
 **Opcao A: Scripts de Inicializacao**
+
 ```bash
 # Windows
 start-dev.bat
@@ -73,12 +81,14 @@ chmod +x start-dev.sh
 ```
 
 **Opcao B: Manual**
+
 ```bash
 # Terminal 1: Agente Python
 cd agent
 python main.py
 
 # Terminal 2: Frontend
+cd frontend
 npm run dev
 
 # Terminal 3: Servidor Gateway (opcional)
@@ -106,6 +116,7 @@ vercel deploy --prod
 Escolha uma opcao:
 
 **Railway (Recomendado)**
+
 ```bash
 npm install -g @railway/cli
 railway login
@@ -115,6 +126,7 @@ railway up
 ```
 
 **Heroku**
+
 ```bash
 heroku login
 heroku create seu-agente-name
@@ -122,6 +134,7 @@ git push heroku main
 ```
 
 **Docker (Qualquer Hospedagem)**
+
 ```bash
 docker build -t jarvis-agent -f agent/Dockerfile .
 docker run -p 8000:8000 jarvis-agent
@@ -143,6 +156,7 @@ docker run -p 8000:8000 jarvis-agent
 ## 🔑 Variaveis de Ambiente Necessarias
 
 **Vercel:**
+
 ```
 VITE_SUPABASE_URL
 VITE_SUPABASE_ANON_KEY
@@ -154,6 +168,7 @@ ANTHROPIC_API_KEY (opcional)
 ```
 
 **Agente Python (Railway/Heroku/Docker):**
+
 ```
 NVIDIA_API_KEY
 SUPABASE_URL
@@ -170,16 +185,19 @@ ANTHROPIC_API_KEY (opcional)
 ## 📞 Troubleshooting
 
 **Agente Python nao responde:**
+
 - Verificar se rodando em porta 8000
 - Testar: `curl http://localhost:8000/health`
 - Ver logs: `python main.py --reload`
 
 **Frontend nao conecta ao agent:**
+
 - Verificar PYTHON_AGENT_URL em server.ts
 - Checar CORS em main.py
 - Ver logs do browser (F12)
 
 **Dependencias Python com erro:**
+
 - Use requirements-base.txt ao inves de requirements.txt
 - Crie um venv: `python -m venv venv`
 - Ative venv antes de instalar
@@ -187,13 +205,14 @@ ANTHROPIC_API_KEY (opcional)
 ## 🎯 Resumo Tecnico
 
 **Performance em Producao:**
+
 - Frontend: Vercel CDN (muito rapido)
 - Backend: Serverless functions ou containers
 - Database: Supabase (managed PostgreSQL)
 - Agent: Container dedicado (melhor para FastAPI)
 
 **Custos Estimados:**
+
 - Vercel: Gratis até 100GB/mes (Hobby)
 - Railway: ~$5/mes (minimal)
 - Supabase: Gratis até 500MB
-
