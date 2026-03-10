@@ -5,7 +5,7 @@
     "dockerfilePath": "agent/Dockerfile"
   },
   "deploy": {
-    "healthcheckPath": "/",
+    "healthcheckPath": "/health",
     "healthcheckTimeout": 600,
     "healthcheckInterval": 30,
     "restartPolicyType": "ON_FAILURE",

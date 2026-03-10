@@ -32,7 +32,4 @@ RUN mkdir -p /app/chroma_db && chown -R appuser:appuser /app/chroma_db && chmod 
 
 USER appuser
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
-    CMD curl -fsS "http://127.0.0.1:${PORT:-8000}/health" || exit 1
-
 CMD ["/bin/sh", "-c", "PORT=${PORT:-8000} && echo \"[STARTUP] PORT=$PORT\" && python -m uvicorn main:app --host 0.0.0.0 --port $PORT --log-level info"]
