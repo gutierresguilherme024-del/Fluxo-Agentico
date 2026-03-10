@@ -38,8 +38,10 @@ NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", os.getenv("VITE_NVIDIA_BASE_URL",
 LLM_MODEL = os.getenv("LLM_MODEL", os.getenv("VITE_LLM_MODEL", "z-ai/glm4.7")).strip()
 
 # Supabase
-SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", "")).strip()
+_supabase_url_raw = os.getenv("SUPABASE_URL", "").strip()
+_supabase_key_raw = os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", "")).strip()
+SUPABASE_URL = "" if _is_placeholder_secret(_supabase_url_raw) else _supabase_url_raw
+SUPABASE_KEY = "" if _is_placeholder_secret(_supabase_key_raw) else _supabase_key_raw
 
 # ChromaDB
 CHROMA_PATH = os.getenv("CHROMA_PATH", "./chroma_db").strip()
