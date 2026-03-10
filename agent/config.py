@@ -3,11 +3,30 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+def _is_placeholder_secret(value: str) -> bool:
+    normalized = value.strip().strip('"').strip("'").lower()
+    if not normalized:
+        return True
+    placeholders = {
+        "#",
+        "***",
+        "changeme",
+        "change-me",
+        "your_key_here",
+        "your-api-key",
+        "none",
+        "null",
+        "undefined",
+        "false",
+        "0",
+    }
+    return normalized in placeholders
+
 def get_env_flexible(primary_key, fallbacks=[]):
     keys = [primary_key] + fallbacks
     for k in keys:
         val = os.getenv(k, "").strip()
-        if val:
+        if val and not _is_placeholder_secret(val):
             print(f"[CONFIG] Chave encontrada usando o nome: {k}")
             return val
     return ""

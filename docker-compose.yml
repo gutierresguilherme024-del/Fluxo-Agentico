@@ -14,6 +14,7 @@ services:
       - SUPABASE_KEY=${SUPABASE_ANON_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - CHROMA_PATH=/app/chroma_db
+      - PORT=8000
       - AGENT_PORT=8000
       - AGENT_HOST=0.0.0.0
     volumes:
