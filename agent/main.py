@@ -13,7 +13,7 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from config import HOST, PORT
 from graph import VoiceAgent
@@ -51,7 +51,7 @@ class ChatRequest(BaseModel):
     system: Optional[str] = None # Fallback para o payload da Vercel/Frontend
     user_id: str = "default"
     message: str = ""
-    messages: list = [] # NOVO CORTE DE HISTORICO - INJETAR DIRETO FRONT NO BACK
+    messages: list = Field(default_factory=list) # NOVO CORTE DE HISTORICO - INJETAR DIRETO FRONT NO BACK
     session_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
@@ -91,10 +91,6 @@ async def chat(req: ChatRequest):
         effective_soul = req.system or req.soul
         agent = get_agent(req.agent_id, effective_soul, req.user_id)
         
-        # Buscar quantas memórias serão usadas
-        memory = AgentMemory(req.agent_id)
-        memories = memory.search_memories(req.user_id, req.message, limit=5)
-        
         response_text = await agent.chat(user_message=req.message, external_messages=req.messages)
         
         return ChatResponse(
@@ -102,7 +98,7 @@ async def chat(req: ChatRequest):
             agent_id=req.agent_id,
             user_id=req.user_id,
             timestamp=datetime.now().isoformat(),
-            memories_used=len(memories)
+            memories_used=0
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

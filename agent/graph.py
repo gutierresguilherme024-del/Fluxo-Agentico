@@ -114,7 +114,7 @@ class VoiceAgent:
             return tool_name, tool_arg, clean_text
         return None, None, text
 
-    async def chat(self, user_message: str) -> str:
+    async def chat(self, user_message: str, external_messages: Optional[list] = None) -> str:
         """Processa uma mensagem do usuário e retorna a resposta"""
         # 1. Buscar memórias relevantes
         memories = self.memory.search_memories(
@@ -131,6 +131,15 @@ class VoiceAgent:
         # Adicionar histórico recente (últimas 10 trocas)
         for msg in self.conversation_history[-20:]:
             messages.append(msg)
+
+        # Permite injetar histórico vindo do frontend sem quebrar compatibilidade.
+        if external_messages:
+            for msg in external_messages[-20:]:
+                role = msg.get("role") if isinstance(msg, dict) else None
+                content = msg.get("content") if isinstance(msg, dict) else None
+                if role in {"user", "assistant", "system"} and isinstance(content, str) and content.strip():
+                    if role != "system":
+                        messages.append({"role": role, "content": content})
         
         messages.append({"role": "user", "content": user_message})
 
