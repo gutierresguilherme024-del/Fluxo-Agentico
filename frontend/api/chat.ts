@@ -1,5 +1,42 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+const RETRYABLE_STATUS = new Set([502, 503, 504]);
+
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url: string, init: RequestInit, retries = 3): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (!RETRYABLE_STATUS.has(response.status) || attempt === retries) {
+        return response;
+      }
+
+      await delay(800 * attempt);
+    } catch (error) {
+      clearTimeout(timeout);
+      lastError = error;
+
+      if (attempt === retries) {
+        throw error;
+      }
+
+      await delay(800 * attempt);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Falha de conexão com o agente.');
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -22,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // 1. Extrair a última mensagem do usuário do payload do frontend
-    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+    const lastUserMessage = messages.filter((m: { role?: string }) => m.role === 'user').pop();
     const messageText = lastUserMessage?.content || '';
 
     // 2. Limpar a URL base (remover barra extra no final, se houver)
@@ -33,19 +70,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       agent_id: 'jarvis',
       soul: system || 'Você é um assistente de voz inteligente. Responda sempre em português do Brasil.',
       user_id: 'default',
-      message: messageText
+      message: messageText,
+      messages
     };
 
     console.log(`[PROXY] Enviando requisição para: ${baseUrl}/chat`);
 
     // 4. Enviar a requisição para o Agente Python no Railway
-    const response = await fetch(`${baseUrl}/chat`, {
+    const response = await fetchWithRetry(`${baseUrl}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(pythonPayload)
-    });
+    }, 3);
 
     if (!response.ok) {
       const errorText = await response.text();
