@@ -36,4 +36,4 @@ USER appuser
 
 EXPOSE 8080
 
-CMD ["/bin/sh", "-c", "PORT=${PORT:-8000} && echo \"[STARTUP] PORT=$PORT\" && python -m uvicorn main:app --host 0.0.0.0 --port $PORT --log-level info"]
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
