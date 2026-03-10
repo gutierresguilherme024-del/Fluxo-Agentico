@@ -15,7 +15,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from config import HOST, PORT
 from graph import VoiceAgent
 from memory import AgentMemory
 
@@ -167,7 +166,12 @@ async def list_active_agents():
 # ─── Inicialização ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
+
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8080"))
+
     print("[AGENT] SoulForge Voice Agent iniciando...")
-    print(f"[SERVER] Servidor em: http://localhost:{PORT}")
-    print(f"[DOCS] Docs em: http://localhost:{PORT}/docs")
-    uvicorn.run("main:app", host=HOST, port=PORT, reload=True)
+    print(f"[SERVER] Servidor em: http://{host}:{port}")
+    print(f"[DOCS] Docs em: http://{host}:{port}/docs")
+
+    uvicorn.run("main:app", host=host, port=port, reload=True)
